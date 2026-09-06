@@ -1991,6 +1991,17 @@ function matchesFiltered(exercise,ctx){
 }
 function getFiltered(){const ctx=buildFilterContext();const routine=ctx.routine;const filtered=EXERCISES.filter(exercise=>matchesFiltered(exercise,ctx));if(state.sort==='custom'&&routine){const order=new Map(routine.items.map((item,index)=>[item.exerciseId,index]));filtered.sort((a,b)=>(order.get(a.id)??Number.MAX_SAFE_INTEGER)-(order.get(b.id)??Number.MAX_SAFE_INTEGER))}else filtered.sort((a,b)=>state.sort==='name-desc'?b.name.localeCompare(a.name):state.sort==='category'?(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name):state.sort==='id'?String(a.id).localeCompare(String(b.id)):a.name.localeCompare(b.name));return filtered}
 function latestLogFor(exerciseId){return[...state.progress.logs].filter(log=>log.exerciseId===exerciseId).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt)[0]||null}
+function exerciseRecord(exerciseId){
+  let best=null;
+  for(const log of state.progress.logs){
+    if(log.exerciseId!==exerciseId||isTimedCardioLog(log))continue;
+    let weights=Array.isArray(log.setWeights)&&log.setWeights.length?log.setWeights.map(Number).filter(value=>value>0):[];
+    if(!weights.length&&Number(log.weight)>0)weights=[Number(log.weight)];
+    for(const weight of weights)if(!best||weight>best.weight)best={weight,date:log.date,id:log.id};
+  }
+  return best;
+}
+function formatPR(record){return record?`PR: ${formatWeightValue(record.weight)} kg`:''}
 function formatRange(values,suffix=''){const min=Math.min(...values),max=Math.max(...values);return min===max?`${min}${suffix}`:`${min}-${max}${suffix}`}
 function formatWeightValue(value){return String(Math.round(value*10)/10)}
 function isTimedCardioLog(log){return log!=null&&(Number(log.intervals)>0||Array.isArray(log.setDurations)||Array.isArray(log.setDistances))}
@@ -2033,7 +2044,8 @@ function renderCard(exercise){
   const showLatestLog=(state.loggedOnly||state.routineFilter)&&latestLog;
   let subtitleText = `${title(exercise.target)} · ${title(exercise.equipment)}`;
   if (showLatestLog) {
-    subtitleText = `${formatProgress(latestLog)} · ${title(exercise.target)}`;
+    const recordText = formatPR(exerciseRecord(exercise.id));
+    subtitleText = `${formatProgress(latestLog)}${recordText ? ` · ${recordText}` : ''} · ${title(exercise.target)}`;
   }
 
   const normalLike=cardAction(`save-button${state.saved.has(exercise.id)?' saved':''}`,'heart',`${state.saved.has(exercise.id)?'Remove from':'Add to'} saved exercises`,state.saved.has(exercise.id));
@@ -3099,7 +3111,9 @@ function renderModalMuscleMap(exercise){
 }
 function updateModalProgress(exerciseId) {
   const latest = latestLogFor(exerciseId);
-  $('#modalProgressSummary').textContent = latest ? `Last: ${formatProgress(latest)}` : 'No progress logged yet';
+  const recordText = formatPR(exerciseRecord(exerciseId));
+  if (latest) $('#modalProgressSummary').textContent = `Last: ${formatProgress(latest)}${recordText ? ` · ${recordText}` : ''}`;
+  else $('#modalProgressSummary').textContent = recordText || 'No progress logged yet';
 }
 function resetModalScrollPosition() {
   $('.modal').scrollTop = 0;
@@ -4060,13 +4074,15 @@ function renderProgressHistory() {
   const visibleLogs = [...state.progress.logs].filter((log) => (
     activeExercise ? log.exerciseId === activeExercise.id : log.date === state.dashboard.selectedDate
   )).sort((left, right) => right.date.localeCompare(left.date) || right.createdAt - left.createdAt);
+  const record = activeExercise ? exerciseRecord(activeExercise.id) : null;
   $('#progressHistory').innerHTML = visibleLogs.length ? visibleLogs.map((log) => {
     const exercise = getExercise(log.exerciseId);
     if (!exercise) return '';
+    const isRecord = record && log.id === record.id;
     const entryVisual = activeExercise
       ? (() => { const d = parseLocalDate(log.date); return `<div class="progress-entry-date progress-entry-thumbnail"><b>${String(d.getDate()).padStart(2,'0')}</b><span>${esc(d.toLocaleDateString(undefined,{month:'short'}))}</span></div>`; })()
       : `<div class="progress-entry-date progress-entry-thumbnail" aria-hidden="true">${icon('movement')}${exercise.custom?'':`<img src="${esc(exercise.image)}" alt="">`}</div>`;
-    return `<article class="progress-entry" data-progress-id="${esc(log.id)}" data-exercise-id="${esc(exercise.id)}" role="button" tabindex="0" aria-label="Open ${esc(exercise.name)} details">${entryVisual}<div class="progress-entry-copy">${activeExercise ? '' : `<strong>${esc(title(exercise.name))}</strong>`}<span>${esc(formatProgress(log))}</span>${log.notes ? `<small>${esc(log.notes)}</small>` : ''}</div><button class="entry-delete" type="button" aria-label="Delete ${esc(exercise.name)} progress entry">${icon('trash')}</button></article>`;
+    return `<article class="progress-entry" data-progress-id="${esc(log.id)}" data-exercise-id="${esc(exercise.id)}" role="button" tabindex="0" aria-label="Open ${esc(exercise.name)} details">${entryVisual}<div class="progress-entry-copy">${activeExercise ? '' : `<strong>${esc(title(exercise.name))}</strong>`}<span>${esc(formatProgress(log))}${isRecord ? ' <span class="pr-badge">PR</span>' : ''}</span>${log.notes ? `<small>${esc(log.notes)}</small>` : ''}</div><button class="entry-delete" type="button" aria-label="Delete ${esc(exercise.name)} progress entry">${icon('trash')}</button></article>`;
   }).join('') : `<div class="feature-empty">${activeExercise ? 'No progress entries for this exercise.' : 'No workouts logged this day.'}</div>`;
   $('#progressHistory').querySelectorAll('.progress-entry-thumbnail img').forEach((image) => image.addEventListener('error', () => image.classList.add('failed'), { once: true }));
   renderProgressDashboard();
