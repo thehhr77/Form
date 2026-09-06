@@ -1135,7 +1135,6 @@ button.settings-row-danger:focus-visible { color: var(--danger); }
 .progress-entry-copy { min-width: 0; flex: 1; }
 .progress-entry-copy strong { display: block; overflow: hidden; font-size: var(--card-title); font-weight: var(--weight-semibold); line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .progress-entry-copy span { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--card-sub); line-height: 1.3; font-variant-numeric: tabular-nums; }
-.pr-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; color: var(--accent-ink); background: var(--accent); border-radius: 999px; font-size: 9px; font-weight: var(--weight-semibold); letter-spacing: .08em; line-height: 1.4; text-transform: uppercase; vertical-align: 1px; }
 .progress-entry-copy small { display: block; margin-top: 3px; overflow: hidden; color: var(--text-faint); font-size: var(--card-note); line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .entry-delete { width: var(--control-size); height: var(--control-size); flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: var(--danger); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); }
 .feature-empty { min-height: 120px; display: grid; place-items: center; margin-top: var(--space-2); padding: var(--space-5); color: var(--text-muted); border-style: dashed; font-size: 12px; text-align: center; }
