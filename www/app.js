@@ -28,12 +28,12 @@ const STORAGE_KEYS=Object.freeze({
 const DEFAULTS=Object.freeze({pageSize:30,sets:3,reps:10,weight:0,duration:30,distance:0});
 const LIMITS=Object.freeze({routineName:40,sets:20,reps:100,weight:2000,duration:600,distance:500,notes:160});
 const ACCENTS=Object.freeze({
-  red:{base:'#ff453a',rgb:'255,69,58'},
-  blue:{base:'#0a84ff',rgb:'10,132,255'},
-  green:{base:'#30d158',rgb:'48,209,88'},
-  orange:{base:'#ff9f0a',rgb:'255,159,10'},
-  purple:{base:'#bf5af2',rgb:'191,90,242'},
-  pink:{base:'#ff64d9',rgb:'255,100,217'}
+  red:{base:'#ff453a',rgb:'255,69,58',ink:'#ffffff'},
+  blue:{base:'#0a84ff',rgb:'10,132,255',ink:'#ffffff'},
+  green:{base:'#30d158',rgb:'48,209,88',ink:'#131314'},
+  orange:{base:'#ff9f0a',rgb:'255,159,10',ink:'#131314'},
+  purple:{base:'#bf5af2',rgb:'191,90,242',ink:'#ffffff'},
+  pink:{base:'#ff375f',rgb:'255,55,95',ink:'#ffffff'}
 });
 function normalizeAccent(value){return value&&ACCENTS[value]?value:'red'}
 let activeAccent=normalizeAccent(readStorage(STORAGE_KEYS.accent,'red'));
@@ -41,7 +41,7 @@ function applyAccent(name){
   const palette=ACCENTS[name]||ACCENTS.red;
   const root=document.documentElement.style;
   root.setProperty('--accent',palette.base);
-  root.setProperty('--accent-ink','#ffffff');
+  root.setProperty('--accent-ink',palette.ink);
   root.setProperty('--accent-rgb',palette.rgb);
 }
 applyAccent(activeAccent);
@@ -207,7 +207,7 @@ function mergeCustomExercisesImported(parsed){
 }
 async function copyCustomExercises(){
   const text=customExercisesToText();
-  if(!text)return toast('No custom exercises to export');
+  if(!text)return;
   if(await copyTextToClipboard(text)){toast('Custom exercises copied');return;}
   showCustomExercisePastePanel(text);
 }
@@ -307,8 +307,21 @@ function parseLocalDate(value){const [year,month,day]=String(value).split('-').m
 function formatProgressDateValue(value){if(!isValidProgressDate(value))return'';const date=parseLocalDate(value);return `${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getDate()).padStart(2,'0')}/${date.getFullYear()}`}
 
 const DEFAULT_FOOD_DB = [
-  { id: 'custom', name: '-- Custom Entry / Other --', cat: 'Other', p100: 0, c100: 0, f100: 0, cals100: 0, defaultMeal: 'Lunch', defaultGrams: 100, liked: false },
+  { id: 'custom', name: 'Select a meal or add one', p100: 0, c100: 0, f100: 0, cals100: 0, defaultGrams: 100, liked: false },
 ];
+
+const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+let logMealSlot = 'Breakfast';
+function nextLogSlot() {
+  const day = state.fuel.history[state.fuelSelectedDate];
+  const meals = day?.meals || [];
+  return MEAL_SLOTS.find(slot => !meals.some(meal => (meal.category || 'Snacks') === slot)) || 'Snacks';
+}
+function renderLogMealSlot() {
+  document.querySelectorAll('#logMealSlotPills [data-slot]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.slot === logMealSlot));
+  });
+}
 
 function kcalFromMacros(p, c, f) { return Math.round((p * 4) + (c * 4) + (f * 9)); }
 
@@ -330,7 +343,8 @@ function loadFuelState() {
   if (data && data.foodDb) {
     data.foodDb = data.foodDb.map(item => ({
       ...item,
-      cals100: item.cals100 || kcalFromMacros(item.p100, item.c100, item.f100)
+      cals100: item.cals100 || kcalFromMacros(item.p100, item.c100, item.f100),
+      name: item.id === 'custom' ? DEFAULT_FOOD_DB[0].name : item.name
     }));
   }
   const profile = { ...fallback.profile, ...(data?.profile || {}) };
@@ -404,8 +418,8 @@ function clearActiveWorkout(){
 
 let progressDatePickerMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1,12),progressDatePickerReturnFocus=null;
 function setProgressDateValue(value){const next=isValidProgressDate(value)?value:localDateValue();$('#progressDate').value=next;$('#progressDateDisplay').textContent=formatProgressDateValue(next)}
-function renderProgressDatePicker(){const selectedValue=$('#progressDate').value||localDateValue(),selected=parseLocalDate(selectedValue),todayValue=localDateValue(),year=progressDatePickerMonth.getFullYear(),month=progressDatePickerMonth.getMonth(),firstDay=Number(state.progressPreferences.firstDay),weekStart=[0,1,6].includes(firstDay)?firstDay:1,monthStart=new Date(year,month,1,12),offset=(monthStart.getDay()-weekStart+7)%7,start=new Date(year,month,1-offset,12);$('#progressDatePickerTitle').textContent=monthStart.toLocaleDateString(undefined,{month:'long',year:'numeric'});const weekBase=new Date(2024,0,7+weekStart,12);$('#progressDateWeekdays').innerHTML=Array.from({length:7},(_,index)=>{const day=new Date(weekBase);day.setDate(weekBase.getDate()+index);return `<span>${esc(day.toLocaleDateString(undefined,{weekday:'short'}).slice(0,2))}</span>`}).join('');const cells=Array.from({length:42},(_,index)=>{const date=new Date(start);date.setDate(start.getDate()+index);const value=localDateValue(date),outside=date.getMonth()!==month,selectedDay=value===selectedValue,today=value===todayValue;return `<button class="progress-date-day${outside?' outside-month':''}${selectedDay?' selected':''}${today?' today':''}" type="button" role="gridcell" data-date="${value}" aria-selected="${selectedDay}" aria-label="${esc(date.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}">${date.getDate()}</button>`});
-$('#progressDateGrid').innerHTML=Array.from({length:6},(_,week)=>`<div role="row">${cells.slice(week*7,week*7+7).join('')}</div>`).join('')}
+function renderProgressDatePicker(){const selectedValue=$('#progressDate').value||localDateValue(),todayValue=localDateValue(),todayDate=new Date(),todayYear=todayDate.getFullYear(),todayMonth=todayDate.getMonth(),year=progressDatePickerMonth.getFullYear(),month=progressDatePickerMonth.getMonth(),firstDay=Number(state.progressPreferences.firstDay),weekStart=[0,1,6].includes(firstDay)?firstDay:1,monthStart=new Date(year,month,1,12),offset=(monthStart.getDay()-weekStart+7)%7,start=new Date(year,month,1-offset,12);$('#progressDatePickerTitle').textContent=monthStart.toLocaleDateString(undefined,{month:'long',year:'numeric'});$('#progressDatePickerTitle').disabled=year===todayYear&&month===todayMonth;const weekBase=new Date(2024,0,7+weekStart,12);$('#progressDateWeekdays').innerHTML=Array.from({length:7},(_,index)=>{const day=new Date(weekBase);day.setDate(weekBase.getDate()+index);return `<span>${esc(day.toLocaleDateString(undefined,{weekday:'short'}).slice(0,2))}</span>`}).join('');const cells=Array.from({length:42},(_,index)=>{const date=new Date(start);date.setDate(start.getDate()+index);const value=localDateValue(date),outside=date.getMonth()!==month,selectedDay=value===selectedValue,today=value===todayValue,futureDay=value>todayValue;return `<button class="progress-date-day${outside?' outside-month':''}${selectedDay?' selected':''}${today?' today':''}" type="button" role="gridcell" data-date="${value}" aria-selected="${selectedDay}"${futureDay?' disabled':''} aria-label="${esc(date.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}">${date.getDate()}</button>`});
+$('#progressDateGrid').innerHTML=Array.from({length:6},(_,week)=>`<div role="row">${cells.slice(week*7,week*7+7).join('')}</div>`).join('');$('#progressDateNext').disabled=year===todayYear&&month===todayMonth}
 function openProgressDatePicker(returnFocus=document.activeElement){const selected=parseLocalDate($('#progressDate').value||localDateValue());progressDatePickerMonth=new Date(selected.getFullYear(),selected.getMonth(),1,12);progressDatePickerReturnFocus=returnFocus;renderProgressDatePicker();const picker=$('#progressDatePicker');picker.hidden=false;$('#progressDateButton').setAttribute('aria-expanded','true');picker.classList.add('open');picker.querySelector(`[data-date="${$('#progressDate').value}"]`)?.focus({preventScroll:true})}
 function closeProgressDatePicker(restoreFocus=true){const picker=$('#progressDatePicker');if(!picker||picker.hidden)return;picker.classList.remove('open');$('#progressDateButton').setAttribute('aria-expanded','false');picker.hidden=true;if(restoreFocus&&progressDatePickerReturnFocus?.isConnected)progressDatePickerReturnFocus.focus({preventScroll:true});progressDatePickerReturnFocus=null}
 
@@ -639,7 +653,7 @@ function parseRoutinesMd(text) {
     }
   }
   routines.forEach(sanitizeSupersetGroups);
-  return routines.filter(r => r.items.length > 0);
+  return routines;
 }
 
 const PER100G_LINE=/^Per100g\s+(\d+(?:\.\d+)?)\s*cal\s+(\d+(?:\.\d+)?)\s*pro\s+(\d+(?:\.\d+)?)\s*carb\s+(\d+(?:\.\d+)?)\s*fat$/i;
@@ -655,9 +669,9 @@ function parseMealsMd(text) {
       meal = null;
       if (/^# Meal Library/i.test(line)) continue;
     }
-    const headerMatch = line.match(/^(.+)\s*-\s*([A-Za-z0-9\/\s-]+)\s*\(\s*(\d+(?:\.\d+)?)\s*g\s*\)$/i);
+    const headerMatch = line.match(/^(.+)\s*\(\s*(\d+(?:\.\d+)?)\s*g\s*\)$/i);
     if (headerMatch) {
-      meal = { id: `m-${stamp}-${meals.length}`, name: headerMatch[1].trim().slice(0, LIMITS.routineName), cat: headerMatch[2].trim(), defaultMeal: headerMatch[2].trim(), defaultGrams: vClampNum(headerMatch[3], 1, 5000, 100), p100: 0, c100: 0, f100: 0, cals100: 0, liked: false };
+      meal = { id: `m-${stamp}-${meals.length}`, name: headerMatch[1].trim().slice(0, LIMITS.routineName), defaultGrams: vClampNum(headerMatch[2], 1, 5000, 100), p100: 0, c100: 0, f100: 0, cals100: 0, liked: false };
       meals.push(meal);
       continue;
     }
@@ -969,7 +983,7 @@ function mealsToMd(foodDb) {
   const lines = ['# Meal Library', ''];
   for (const meal of foodDb) {
     if (meal.id === 'custom') continue;
-    lines.push(`${meal.name} - ${meal.cat || 'Other'} (${meal.defaultGrams || 100}g)`);
+    lines.push(`${meal.name} (${meal.defaultGrams || 100}g)`);
     lines.push(`Per100g ${meal.cals100}cal ${meal.p100}pro ${meal.c100}carb ${meal.f100}fat`);
     if (meal.id) lines.push(`- id: ${meal.id}`);
     if (meal.liked) lines.push('- liked');
@@ -1224,7 +1238,6 @@ function mergeConfigFromVault(fileText) {
 function mergeRoutinesFromVault(fileText) {
   const fileRoutines = parseRoutinesMd(fileText);
   if (!fileRoutines.length) return;
-  const appIds = new Set(state.routines.map(r => r.id));
   for (const fr of fileRoutines) {
     const existing = state.routines.find(r => r.name === fr.name);
     if (existing) {
@@ -1257,7 +1270,7 @@ function mergeMealsFromVault(fileText) {
   for (const fm of fileMeals) {
     const existing = state.fuel.foodDb.find(m => m.name === fm.name);
     if (existing) {
-      existing.cat = fm.cat; existing.defaultMeal = fm.defaultMeal; existing.defaultGrams = fm.defaultGrams;
+      existing.defaultGrams = fm.defaultGrams;
       existing.p100 = fm.p100; existing.c100 = fm.c100; existing.f100 = fm.f100; existing.cals100 = fm.cals100; existing.liked = fm.liked;
     } else {
       if (!fm.id || state.fuel.foodDb.some(m => m.id === fm.id)) fm.id = `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1544,10 +1557,7 @@ function updateExerciseCount(){const el=$('#settingsExerciseCount');if(el)el.tex
 
 async function switchVault(folder) {
   const clean = sanitizeVaultFolder(folder);
-  if (state.mobileTab === 'plan' && state.planSection === 'meals' && mealEditorBusy()) {
-    toast('Save your meal first');
-    return;
-  }
+  if (mealEditorLocked()) return;
   const pendingKeys = Object.keys(vaultSaveTimers);
   for (const key of pendingKeys) { clearTimeout(vaultSaveTimers[key]); delete vaultSaveTimers[key]; }
   if (VAULT.loaded && pendingKeys.length) await Promise.all(pendingKeys.map(key => writeVaultFile(key).catch(() => {})));
@@ -1559,10 +1569,7 @@ async function switchVault(folder) {
 }
 
 async function reloadVault() {
-  if (state.mobileTab === 'plan' && state.planSection === 'meals' && mealEditorBusy()) {
-    toast('Save your meal first');
-    return;
-  }
+  if (mealEditorLocked()) return;
   await loadVault(VAULT.folder, { silent: false });
 }
 
@@ -1633,7 +1640,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 function uniqueValues(key){return[...new Set(EXERCISES.map(exercise=>exercise[key]).filter(Boolean))].sort()}
-const CUSTOM_SELECT_IDS=['inMealCategory','inSex','inActivity','inStrategy','inProteinRate','editMealCat'];
+  const CUSTOM_SELECT_IDS=['inSex','inActivity','inStrategy','inProteinRate'];
 function customSelectLabel(select){return select.getAttribute('aria-label')||select.closest('label')?.querySelector('span')?.textContent?.trim()||select.closest('.feature-field')?.querySelector('label')?.textContent?.trim()||select.closest('.feature-field')?.querySelector('span')?.textContent?.trim()||'Choose an option'}
 function syncCustomSelect(select){
   if(!select?.dataset.customSelectReady)return;
@@ -1726,12 +1733,15 @@ function positionMenuBetween(menu, button, options=null){
   menu.style.bottom=bottom;
   return openUp;
 }
-const LEGACY_MENUS=[['routineMenu','routineSelectorButton'],['menuCustomManageSelect','btnCustomManageSelect'],['menuCustomIngredient','btnCustomIngredientSelect'],['exerciseTagMenu','modalTagButton',{alignRight:true,minWidth:240}]];
+const LEGACY_MENUS=[['routineMenu','routineSelectorButton'],['menuCustomManageSelect','btnCustomManageSelect','manageSearchSwap',null],['menuCustomIngredient','btnCustomIngredientSelect','ingredientSearchSwap',null],['exerciseTagMenu','modalTagButton',null,{alignRight:true,minWidth:240}]];
 function repositionOpenLegacyMenus(){
-  for(const[menuId,buttonId,options]of LEGACY_MENUS){
+  for(const[menuId,buttonId,swapId,options]of LEGACY_MENUS){
     const menu=document.getElementById(menuId);
     if(!menu||menu.hidden)continue;
-    positionMenuBetween(menu,document.getElementById(buttonId),options);
+    let anchor=document.getElementById(buttonId);
+    const swap=swapId?document.getElementById(swapId):null;
+    if(anchor&&anchor.hidden&&swap&&!swap.hidden)anchor=swap;
+    positionMenuBetween(menu,anchor,options);
   }
 }
 let scheduleMeasureCanvas=null;
@@ -1775,9 +1785,9 @@ function closeAllCustomMenus(except=null){
   const routineMenu=$('#routineMenu');
   if(routineMenu&&!routineMenu.hidden&&routineMenu!==except){routineMenu.hidden=true;$('#routineSelectorButton')?.setAttribute('aria-expanded','false');}
   const manageMenu=$('#menuCustomManageSelect');
-  if(manageMenu&&!manageMenu.hidden&&manageMenu!==except){manageMenu.hidden=true;$('#btnCustomManageSelect')?.setAttribute('aria-expanded','false');}
+  if(manageMenu&&!manageMenu.hidden&&manageMenu!==except)closeManageMenu();
   const ingredientMenu=$('#menuCustomIngredient');
-  if(ingredientMenu&&!ingredientMenu.hidden&&ingredientMenu!==except){ingredientMenu.hidden=true;$('#btnCustomIngredientSelect')?.setAttribute('aria-expanded','false');}
+  if(ingredientMenu&&!ingredientMenu.hidden&&ingredientMenu!==except)closeIngredientMenu();
   hideTagMenu(except);
 }
 function renderModalTagMenu(){
@@ -1916,13 +1926,16 @@ function initCustomSelect(select){
   syncCustomSelect(select);
 }
 function initCustomSelects(){CUSTOM_SELECT_IDS.forEach(id=>initCustomSelect(document.getElementById(id)))}
-function initMenuKeyboard(menuId,buttonId){
+function initMenuKeyboard(menuId,buttonId,onOpen=null){
   const menu=document.getElementById(menuId),button=document.getElementById(buttonId);
   if(!menu||!button)return;
   button.addEventListener('keydown',event=>{
     if(['ArrowDown','ArrowUp'].includes(event.key)){
       event.preventDefault();
-      if(menu.hidden){closeAllCustomMenus(menu);menu.hidden=false;positionMenuBetween(menu,button);button.setAttribute('aria-expanded','true');}
+      if(menu.hidden){
+        closeAllCustomMenus(menu);menu.hidden=false;positionMenuBetween(menu,button);button.setAttribute('aria-expanded','true');
+        if(onOpen){onOpen();return;}
+      }
       requestAnimationFrame(()=>{
         const items=[...menu.querySelectorAll('button:not([disabled])')];
         items[event.key==='ArrowUp'?items.length-1:0]?.focus({preventScroll:true});
@@ -1936,6 +1949,8 @@ function initMenuKeyboard(menuId,buttonId){
       event.stopPropagation();
       menu.hidden=true;
       button.setAttribute('aria-expanded','false');
+      if(menu.id==='menuCustomManageSelect')setManageSearchMode(false);
+      if(menu.id==='menuCustomIngredient')setIngredientSearchMode(false);
       button.focus({preventScroll:true});
     }else if(event.key==='ArrowDown'&&items.length){
       event.preventDefault();
@@ -2183,7 +2198,7 @@ function openOverlay(key,returnFocus=document.activeElement){
   else if(key==='progress'){$('#progressBackdrop').classList.add('open');$('#progressBackdrop').setAttribute('aria-hidden','false');}
   else if(key==='fuel'){$('#fuelBackdrop').classList.add('open');$('#fuelBackdrop').setAttribute('aria-hidden','false');}
   else if(key==='modal'){$('#modalBackdrop').classList.add('open');$('#modalBackdrop').setAttribute('aria-hidden','false');}
-   else if(key==='logMeal'){$('#fuelLogMealModal').classList.add('open');$('#fuelLogMealModal').setAttribute('aria-hidden','false');syncCustomSelect($('#inMealCategory'));}
+   else if(key==='logMeal'){$('#fuelLogMealModal').classList.add('open');$('#fuelLogMealModal').setAttribute('aria-hidden','false');logMealSlot=nextLogSlot();renderLogMealSlot();}
    else if(key==='customExercise'){$('#customExerciseModal').classList.add('open');$('#customExerciseModal').setAttribute('aria-hidden','false');}
    else if(key==='bodyMetrics'){
      $('#bodyMetricsModal').classList.add('open');$('#bodyMetricsModal').setAttribute('aria-hidden','false');
@@ -2437,7 +2452,7 @@ function parseRoutineText(text){
     routines.push(routine);
     seen=new Set();
   }
-  if(!routines.length||routines.some(item=>!item.items.length))throw new Error('Empty routine');
+  if(!routines.length)throw new Error('Empty');
   routines.forEach(sanitizeSupersetGroups);
   return routines;
 }
@@ -2639,7 +2654,7 @@ function seedAwSets(routine){
       sets[item.exerciseId]=Array.from({length:clamp(item.sets,1,LIMITS.sets)},()=>({duration:lastDuration,distance:lastDistance,done:false}));
       return;
     }
-    const lastWeight=latestLogFor(item.exerciseId)?.weight||0;
+    const lastWeight=lastLoggedWeightFor(item.exerciseId);
     sets[item.exerciseId]=Array.from({length:item.sets},()=>({reps:item.reps,weight:routineItemWeighted(item,exercise)?lastWeight:null,done:false}));
   });
   return sets;
@@ -2698,6 +2713,29 @@ function lastLoggedRepsFor(exerciseId){
   if(Array.isArray(latest.setReps)&&latest.setReps.length){const value=clamp(Math.round(Number(latest.setReps[latest.setReps.length-1]))||0,1,LIMITS.reps);return value||null}
   if(Number(latest.reps)>=1)return clamp(Math.round(Number(latest.reps)),1,LIMITS.reps);
   return null;
+}
+function lastTimedLogFor(exerciseId){
+  return [...state.progress.logs].filter(log=>log.exerciseId===exerciseId&&isTimedCardioLog(log)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt)[0]||null;
+}
+function lastStrengthLogFor(exerciseId){
+  return [...state.progress.logs].filter(log=>log.exerciseId===exerciseId&&!isTimedCardioLog(log)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt)[0]||null;
+}
+function logTrackedWeight(log){
+  if(!log)return false;
+  if(Array.isArray(log.setWeights)&&log.setWeights.some(value=>Number(value)>0))return true;
+  return !log.duration&&!log.distance&&Number(log.weight)>0;
+}
+function lastLoggedDurUnitFor(exerciseId){
+  const logs=[...state.progress.logs].filter(log=>log.exerciseId===exerciseId&&isTimedCardioLog(log)&&(log.durUnit==='min'||log.durUnit==='sec')).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
+  return logs[0]?.durUnit||null;
+}
+function lastLoggedWeightFor(exerciseId){
+  const logs=state.progress.logs.filter(log=>log.exerciseId===exerciseId&&!isTimedCardioLog(log)&&logTrackedWeight(log)).sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt-a.createdAt);
+  const latest=logs[0];
+  if(!latest)return 0;
+  const setWeights=Array.isArray(latest.setWeights)?latest.setWeights.filter(value=>Number(value)>0):[];
+  const value=setWeights.length?setWeights[setWeights.length-1]:latest.weight;
+  return clamp(Math.round((Number(value)||0)*10)/10,0,LIMITS.weight);
 }
 function awCounts(){
   const rows=awRows().filter(({exercise})=>!awSkipped(exercise.id)),session=state.activeWorkout;
@@ -2843,7 +2881,7 @@ async function handleAwAction(action,exerciseId,delta,rowIndex){
     else rows.push({reps:template?template.reps:item.reps,weight:template?template.weight:(showWeight?0:null),done:false});
     changed=true;
   }else if(action==='remove-rep'){
-    if(!rows.length)return;
+    if(rows.length<=1)return;
     rows.pop();changed=true;
   }else if(action==='check-all'){
     if(!rows.length)return;
@@ -2923,7 +2961,7 @@ function renderActiveWorkout(){
       <div class="aw-addremove">
         <div class="aw-addremove-group">
           <button type="button" data-aw-action="add-rep" data-exercise="${exercise.id}"${!skipped&&(isActive||complete)?'':' disabled'}>Add ${timed?'interval':'rep'}</button>
-          <button type="button" data-aw-action="remove-rep" data-exercise="${exercise.id}"${isActive&&!skipped?'':' disabled'}>Remove ${timed?'interval':'rep'}</button>
+          <button type="button" data-aw-action="remove-rep" data-exercise="${exercise.id}"${isActive&&!skipped&&sets.length>1?'':' disabled'}>Remove ${timed?'interval':'rep'}</button>
         </div>
         <div class="aw-addremove-group">
           <button type="button" data-aw-action="skip" data-exercise="${exercise.id}"${complete&&!skipped?' disabled':''}>${skipped?'Restore':'Skip'}</button>
@@ -3224,35 +3262,43 @@ function closeModal(restoreFocus = true) {
   }, 250);
 }
 
+function seedProgressTimedDraft(exercise, fallbackSets) {
+  const draft = state.progress.draft;
+  const timedLog = lastTimedLogFor(state.progress.activeExerciseId);
+  const timed = timedLog ? timedLogTotals(timedLog) : null;
+  draft.durationUnit = lastLoggedDurUnitFor(state.progress.activeExerciseId) ?? (isTimedCardioExercise(exercise) ? 'min' : 'sec');
+  const seedIntervals = clamp(timed?.intervals || fallbackSets || 1, 1, LIMITS.sets);
+  const latestMinutes = lastLoggedDurationFor(state.progress.activeExerciseId);
+  const seedDuration = latestMinutes != null ? (draft.durationUnit === 'sec' ? Math.max(10, Math.round(latestMinutes * 60)) : Math.max(1, latestMinutes)) : (draft.durationUnit === 'sec' ? 10 : 1);
+  const latestDistances = Array.isArray(timedLog?.setDistances) ? timedLog.setDistances : [];
+  const seedDistance = Math.round(clamp(latestDistances.length ? latestDistances[latestDistances.length - 1] : (sanitizeDistanceValue(timedLog?.distance) ?? DEFAULTS.distance), 0, LIMITS.distance) * 10) / 10;
+  Object.assign(draft, { sets: seedIntervals, setDurations: Array.from({ length: seedIntervals }, () => seedDuration), setDistances: Array.from({ length: seedIntervals }, () => seedDistance) });
+}
+function seedProgressStrengthDraft(exercise) {
+  const draft = state.progress.draft;
+  const strengthLog = lastStrengthLogFor(state.progress.activeExerciseId);
+  const pureStrength = strengthLog && !strengthLog.duration && !strengthLog.distance;
+  const latestWeights = Array.isArray(strengthLog?.setWeights) ? strengthLog.setWeights.map(Number).filter((value) => value > 0) : [];
+  let seedWeight = DEFAULTS.weight;
+  if (latestWeights.length) seedWeight = latestWeights[latestWeights.length - 1];
+  else if (pureStrength && Number(strengthLog.weight) > 0) seedWeight = Number(strengthLog.weight);
+  const seedRepsSource = Array.isArray(strengthLog?.setReps) ? strengthLog.setReps.map(Number).filter((value) => value >= 1) : [];
+  const latestReps = lastLoggedRepsFor(state.progress.activeExerciseId);
+  const baseReps = clamp(pureStrength && Number(strengthLog.reps) >= 1 ? Math.round(Number(strengthLog.reps)) : (latestReps ?? DEFAULTS.reps), 1, LIMITS.reps);
+  const seedSets = clamp(Number(strengthLog?.sets) || seedRepsSource.length || DEFAULTS.sets, 1, LIMITS.sets);
+  const seedSetReps = Array.from({ length: seedSets }, (_, index) => clamp(Math.round(seedRepsSource[index] ?? seedRepsSource[seedRepsSource.length - 1] ?? baseReps) || baseReps, 1, LIMITS.reps));
+  draft.showWeight = strengthLog ? logTrackedWeight(strengthLog) : exerciseHasWeight(exercise);
+  Object.assign(draft, { sets: seedSets, reps: DEFAULTS.reps, setWeights: Array.from({ length: seedSets }, () => seedWeight), setReps: seedSetReps, setDurations: [], setDistances: [] });
+}
 function resetProgressDraft() {
   const exercise = getExercise(state.progress.activeExerciseId);
   const latest = latestLogFor(state.progress.activeExerciseId);
-  const latestMinutes = lastLoggedDurationFor(state.progress.activeExerciseId);
-  const latestReps = lastLoggedRepsFor(state.progress.activeExerciseId);
   const draft = state.progress.draft;
   draft.mode = latest ? (isTimedCardioLog(latest) ? 'timed' : 'reps') : (isTimedCardioExercise(exercise) ? 'timed' : 'reps');
   draft.showWeight = exerciseHasWeight(exercise);
-  if (draft.mode === 'timed') {
-    draft.durationUnit = isTimedCardioExercise(exercise) ? 'min' : 'sec';
-    const timed = isTimedCardioLog(latest) ? timedLogTotals(latest) : null;
-    const seedIntervals = clamp(timed?.intervals || 1, 1, LIMITS.sets);
-    const latestDistances = Array.isArray(latest?.setDistances) ? latest.setDistances : [];
-    const hasTimedHistory = latestMinutes != null;
-    const seedDuration = hasTimedHistory ? (draft.durationUnit === 'sec' ? Math.max(10, Math.round(latestMinutes * 60)) : Math.max(1, latestMinutes)) : (draft.durationUnit === 'sec' ? 10 : 1);
-    const seedDistance = Math.round(clamp(latestDistances.length ? latestDistances[latestDistances.length - 1] : (sanitizeDistanceValue(latest?.distance) ?? DEFAULTS.distance), 0, LIMITS.distance) * 10) / 10;
-    Object.assign(state.progress.draft, { sets: seedIntervals, setDurations: Array.from({ length: seedIntervals }, () => seedDuration), setDistances: Array.from({ length: seedIntervals }, () => seedDistance), notes: '' });
-    $('#progressNotes').value = '';
-    return;
-  }
-  const latestWeights = Array.isArray(latest?.setWeights) ? latest.setWeights.map(Number).filter((value) => value > 0) : [];
-  let seedWeight = DEFAULTS.weight;
-  if (latestWeights.length) seedWeight = latestWeights[latestWeights.length - 1];
-  else if (!latest?.duration && !latest?.distance && Number(latest?.weight) > 0) seedWeight = Number(latest.weight);
-  const strengthLog = latest && !latest.duration && !latest.distance;
-  const seedRepsSource = Array.isArray(latest?.setReps) ? latest.setReps.map(Number).filter((value) => value >= 1) : [];
-  const baseReps = clamp(strengthLog && Number(latest.reps) >= 1 ? Math.round(Number(latest.reps)) : (latestReps ?? DEFAULTS.reps), 1, LIMITS.reps);
-  const seedSetReps = Array.from({ length: DEFAULTS.sets }, (_, index) => clamp(Math.round(seedRepsSource[index] ?? seedRepsSource[seedRepsSource.length - 1] ?? baseReps) || baseReps, 1, LIMITS.reps));
-  Object.assign(state.progress.draft, { sets: DEFAULTS.sets, reps: DEFAULTS.reps, setWeights: Array.from({ length: DEFAULTS.sets }, () => seedWeight), setReps: seedSetReps, setDurations: [], setDistances: [], notes: '' });
+  if (draft.mode === 'timed') seedProgressTimedDraft(exercise);
+  else seedProgressStrengthDraft(exercise);
+  draft.notes = '';
   $('#progressNotes').value = '';
 }function persistProgress() {
   writeStorage(STORAGE_KEYS.progress, state.progress.logs);
@@ -3355,13 +3401,19 @@ function syncSettingsControls(){
   $('#workoutReminder').setAttribute('aria-checked',String(state.showWorkoutReminder));
   $('#restEnabled').setAttribute('aria-checked',String(state.restPrefs.enabled));
   renderPrefSegs();
+  syncSettingsExportButtons();
+}
+function syncSettingsExportButtons(){
+  $('#progressCopyLog').disabled=!state.progress.logs.length;
+  $('#mealCopyLog').disabled=!mealLogToText();
+  $('#customExerciseCopyLog').disabled=!CUSTOM_EXERCISES.length;
 }
 function showProgressLogPaste(text=''){
   showPastePanel('progressLogPaste','progressLogPasteText',text,{alwaysSet:true});
 }
 async function copyProgressLog(){
-  if(!state.progress.logs.length)return toast('Nothing to export');
   const text=progressLogsToText();
+  if(!text)return;
   if(await copyTextToClipboard(text)){toast('Progress log copied');return;}
   showProgressLogPaste(text);
 }
@@ -3472,7 +3524,7 @@ function closeMealLogPaste(){
 }
 async function copyMealLog(){
   const text=mealLogToText();
-  if(!text)return toast('Nothing to export');
+  if(!text)return;
   if(await copyTextToClipboard(text)){toast('Meal log copied');return;}
   showMealLogPaste(text);
 }
@@ -3794,11 +3846,13 @@ function renderDashboardMonthGrid(monthLogs) {
     const selected = state.dashboard.selectedDate === key;
     const classes = ['month-day'];
     if (color) classes.push('logged');
+    if (sets / maxSets > 0.5) classes.push('hot');
     if (key === today) classes.push('today');
     if (selected) classes.push('selected');
     const label = `${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}: ${sets} sets`;
     cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${key}" aria-label="${esc(label)}" aria-pressed="${selected}"${sets ? '' : ' disabled'}${color ? ` style="background:${color}"` : ''}><b>${day}</b></button>`);
   }
+  for (let i = cells.length; i < Math.max(35, Math.ceil(cells.length / 7) * 7); i++) cells.push('<span class="month-day-blank" aria-hidden="true"></span>');
   grid.innerHTML = cells.join('');
 }
 function dashboardAdjacentLoggedWeek(direction) {  if (!state.progress.logs.length) return null;
@@ -4280,10 +4334,7 @@ function setMobileTab(tab) {
   const tabs = ['dashboard', 'plan', 'workout', 'fuel', 'settings'];
   if (!tabs.includes(tab)) return;
   closeProgressSettings();
-  if (state.mobileTab === 'plan' && state.planSection === 'meals' && tab !== 'plan' && mealEditorBusy()) {
-    toast('Save your meal first');
-    return;
-  }
+  if (state.mobileTab === 'plan' && tab !== 'plan' && mealEditorLocked()) return;
   if (state.overlay.active) closeActiveOverlay(false);
 
   const switching = state.mobileTab !== tab;
@@ -4678,8 +4729,8 @@ $('#deleteRoutine').addEventListener('click', async () => {
   renderRoutineDrawer();
   toast('Routine deleted');
 });
-$('#copyRoutine').addEventListener('click', () => currentRoutine() ? copyRoutineValue(routineToText(), 'Routine copied') : toast('Nothing to export'));
-$('#copyAllRoutines').addEventListener('click', () => state.routines.length ? copyRoutineValue(routinesToText(), 'All routines copied') : toast('Nothing to export'));
+$('#copyRoutine').addEventListener('click', () => { if(currentRoutine()) copyRoutineValue(routineToText(), 'Routine copied'); });
+$('#copyAllRoutines').addEventListener('click', () => { if(state.routines.length) copyRoutineValue(routinesToText(), 'All routines copied'); });
 $('#pasteRoutineToggle').addEventListener('click', () => $('#routinePastePanel').hidden ? showRoutinePastePanel() : closeRoutinePastePanel());
 $('#cancelRoutinePaste').addEventListener('click', closeRoutinePastePanel);
 $('#addRoutineText').addEventListener('click', () => importRoutineText('add'));
@@ -4811,6 +4862,7 @@ $('#mobileSettingsTabBtn').addEventListener('click', () => setMobileTab('setting
 $('#planSwitch').addEventListener('click', (event) => {
   const button = event.target.closest('[data-plan-section]');
   if (!button || button.dataset.planSection === state.planSection) return;
+  if (mealEditorLocked()) return;
   state.planSection = button.dataset.planSection;
   renderRoutineDrawer();
   renderMealManagerDrawer();
@@ -4820,6 +4872,7 @@ $('#planSwitch').addEventListener('click', (event) => {
 $('#progressDateButton').addEventListener('click',(event)=>openProgressDatePicker(event.currentTarget));
 $('#progressDatePrev').addEventListener('click',()=>{progressDatePickerMonth=new Date(progressDatePickerMonth.getFullYear(),progressDatePickerMonth.getMonth()-1,1,12);renderProgressDatePicker();});
 $('#progressDateNext').addEventListener('click',()=>{progressDatePickerMonth=new Date(progressDatePickerMonth.getFullYear(),progressDatePickerMonth.getMonth()+1,1,12);renderProgressDatePicker();});
+$('#progressDatePickerTitle').addEventListener('click',()=>{const now=new Date();progressDatePickerMonth=new Date(now.getFullYear(),now.getMonth(),1,12);renderProgressDatePicker();});
 $('#progressDateToday').addEventListener('click',()=>{setProgressDateValue(localDateValue());closeProgressDatePicker();});
 $('#progressDateCancel').addEventListener('click',()=>closeProgressDatePicker());
 $('#progressDatePicker').addEventListener('click',(event)=>{const day=event.target.closest('[data-date]');if(day){setProgressDateValue(day.dataset.date);closeProgressDatePicker();return;}if(event.target.closest('[data-date-picker-close]'))closeProgressDatePicker();});
@@ -4944,16 +4997,9 @@ $('#progressForm').addEventListener('click', (event) => {
     if (!state.progress.activeExerciseId) return;
     if (state.progress.draft.mode !== modeButton.dataset.mode) {
       state.progress.draft.mode = modeButton.dataset.mode;
-      const activeExerciseId = state.progress.activeExerciseId;
-      if (modeButton.dataset.mode === 'timed') {
-        state.progress.draft.durationUnit = isTimedCardioExercise(getExercise(activeExerciseId)) ? 'min' : 'sec';
-        const mins = lastLoggedDurationFor(activeExerciseId);
-        const seed = mins != null ? (state.progress.draft.durationUnit === 'sec' ? Math.max(10, Math.round(mins * 60)) : Math.max(1, mins)) : (state.progress.draft.durationUnit === 'sec' ? 10 : 1);
-        state.progress.draft.setDurations = Array.from({ length: state.progress.draft.sets }, () => seed);
-      } else {
-        const reps = lastLoggedRepsFor(activeExerciseId);
-        if (reps != null) state.progress.draft.setReps = Array.from({ length: state.progress.draft.sets }, () => reps);
-      }
+      const exercise = getExercise(state.progress.activeExerciseId);
+      if (modeButton.dataset.mode === 'timed') seedProgressTimedDraft(exercise, state.progress.draft.sets);
+      else seedProgressStrengthDraft(exercise);
       syncProgressDraft();
     }
     return;
@@ -5024,6 +5070,10 @@ syncMobileTabs();
    ========================================================= */
 
 function mealEditorBusy(){return Boolean(state.fuel.selectedManageMealId||state.fuel.mealCreating)}
+function mealEditorLocked(){
+  if(state.mobileTab==='plan'&&state.planSection==='meals'&&mealEditorBusy()){toast('Save your meal first');return true}
+  return false
+}
 function saveFuelState() {
   writeStorage(STORAGE_KEYS.fuel, state.fuel);
   if (VAULT.loaded) { markDirty('meals'); markDirty('nutritionDiary'); markDirty('config'); scheduleVaultSave('meals'); scheduleVaultSave('nutritionDiary'); scheduleVaultSave('config'); }
@@ -5113,8 +5163,20 @@ function commitFuelTargetInput(input) {
   syncFuelTargetEditor();
 }
 
-const EDITABLE_FOOD_STEPPERS = Object.freeze({ inFoodCals: 0, inFoodP: 1, inFoodC: 1, inFoodF: 1 });
+const EDITABLE_FOOD_STEPPERS = Object.freeze({ inFoodCals: 0, inFoodP: 1, inFoodC: 1, inFoodF: 1, inPortionGrams: 0 });
 function commitEditableFoodStepper(input) {
+  if (input.id === 'inPortionGrams') {
+    const raw = String(input.value).trim().replace(/,/g, '');
+    const num = Number(raw);
+    if (!raw || !Number.isFinite(num)) {
+      input.value = input.dataset.prev ?? String(ingredientPortionGrams);
+      return;
+    }
+    ingredientPortionGrams = Math.max(1, Math.round(num));
+    input.value = String(ingredientPortionGrams);
+    recalculateIngredientMacros();
+    return;
+  }
   const decimals = EDITABLE_FOOD_STEPPERS[input.id];
   if (decimals === undefined) return;
   const raw = String(input.value).trim().replace(/,/g, '');
@@ -5227,6 +5289,7 @@ function syncCustomExerciseValidation(){
 function renderCustomExerciseList(){
   const container=$('#customExerciseList');
   container.innerHTML=CUSTOM_EXERCISES.length?CUSTOM_EXERCISES.map(exercise=>`<div class="custom-exercise-row" data-custom-id="${esc(exercise.id)}"><div class="custom-exercise-copy"><strong>${esc(exercise.name)}</strong><span>${esc(title(exercise.category))}${exercise.target&&exercise.target!==exercise.category?` · ${esc(title(exercise.target))}`:''} · ${esc(title(exercise.equipment))}</span></div><div class="custom-exercise-actions"><button type="button" class="custom-exercise-edit" aria-label="Edit ${esc(exercise.name)}">${icon('edit')}</button><button type="button" class="custom-exercise-delete" aria-label="Delete ${esc(exercise.name)}">${icon('trash')}</button></div></div>`).join(''):'<p class="custom-exercise-empty">No custom exercises yet. Fill in the form above to create one.</p>';
+  syncSettingsExportButtons();
 }
 function resetCustomExerciseSheet(){
   customExerciseDraft.id=null;customExerciseDraft.name='';customExerciseDraft.category='';customExerciseDraft.target='';customExerciseDraft.equipment='';customExerciseDraft.description='';
@@ -5371,25 +5434,76 @@ function getSortedFoodDb(includeCustom = true) {
   return customItem ? [customItem, ...others] : others;
 }
 
+function setIngredientSearchMode(active) {
+  const input = document.getElementById('ingredientSearchSwap');
+  const button = document.getElementById('btnCustomIngredientSelect');
+  if (!input || !button) return;
+  if (input.value) input.value = '';
+  button.hidden = active;
+  input.hidden = !active;
+  renderIngredientMenuOptions();
+  if (active) input.focus({ preventScroll: true });
+}
+
+function setManageSearchMode(active) {
+  const input = document.getElementById('manageSearchSwap');
+  const button = document.getElementById('btnCustomManageSelect');
+  if (!input || !button) return;
+  if (input.value) input.value = '';
+  button.hidden = active;
+  input.hidden = !active;
+  renderManageMealMenu();
+  if (active) input.focus({ preventScroll: true });
+}
+
+function closeIngredientMenu() {
+  const menu = document.getElementById('menuCustomIngredient');
+  if (menu && !menu.hidden) {
+    menu.hidden = true;
+    document.getElementById('btnCustomIngredientSelect')?.setAttribute('aria-expanded', 'false');
+  }
+  setIngredientSearchMode(false);
+}
+
+function closeManageMenu() {
+  const menu = document.getElementById('menuCustomManageSelect');
+  if (menu && !menu.hidden) {
+    menu.hidden = true;
+    document.getElementById('btnCustomManageSelect')?.setAttribute('aria-expanded', 'false');
+  }
+  setManageSearchMode(false);
+}
+
 function toggleIngredientDropdown() {
   const menu = document.getElementById('menuCustomIngredient');
   const btn = document.getElementById('btnCustomIngredientSelect');
   toggleMenu(menu, btn, {
     except: () => menu,
-    open: () => positionMenuBetween(menu, btn)
+    open: () => {
+      positionMenuBetween(menu, btn);
+      setIngredientSearchMode(true);
+    },
+    close: () => setIngredientSearchMode(false)
   });
 }
 
 function renderNonNativeIngredientDropdown() {
-  const menu = document.getElementById('menuCustomIngredient');
+  document.getElementById('lblCustomIngredient').textContent = ingredientDisplayLabel();
+  syncIngredientActionButton();
+  renderIngredientMenuOptions();
+}
+
+function renderIngredientMenuOptions() {
+  const list = document.getElementById('ingredientMenuList');
+  if (!list) return;
   const sorted = getSortedFoodDb(true);
-  const selectedItem = state.fuel.foodDb.find(i => String(i.id) === String(state.fuel.selectedIngredientId)) || sorted[0];
+  const query = (document.getElementById('ingredientSearchSwap')?.value || '').trim().toLowerCase();
+  const filtered = query ? sorted.filter(ing => ing.name.toLowerCase().includes(query)) : sorted;
+  const selectedId = String(state.fuel.selectedIngredientId ?? '');
 
-  document.getElementById('lblCustomIngredient').textContent = `${selectedItem.liked ? '♥ ' : ''}${selectedItem.name}`;
-
-  menu.innerHTML = sorted.map(ing => `
-    <button type="button" role="option" data-ingredient-id="${esc(ing.id)}" aria-selected="${String(String(ing.id) === String(selectedItem.id))}">${ing.liked ? '♥ ' : ''}${esc(ing.name)}</button>
-  `).join('');
+  list.innerHTML = filtered.length ? filtered.map(ing => `
+    <button type="button" role="option" data-ingredient-id="${esc(ing.id)}" aria-selected="${String(String(ing.id) === selectedId)}">${ing.liked ? '♥ ' : ''}${esc(ing.name)}</button>
+  `).join('') : `<span class="routine-menu-empty">${sorted.length ? 'No matches' : 'No meals yet'}</span>`;
 }
 
 document.getElementById('menuCustomIngredient').addEventListener('click', (e) => {
@@ -5400,8 +5514,7 @@ document.getElementById('menuCustomIngredient').addEventListener('click', (e) =>
 
 function selectIngredient(id) {
   state.fuel.selectedIngredientId = id;
-  document.getElementById('menuCustomIngredient').hidden = true;
-  document.getElementById('btnCustomIngredientSelect').setAttribute('aria-expanded', 'false');
+  closeIngredientMenu();
   renderNonNativeIngredientDropdown();
 
   const ing = state.fuel.foodDb.find(i => String(i.id) === String(id));
@@ -5410,10 +5523,8 @@ function selectIngredient(id) {
     return;
   }
 
-  document.getElementById('inMealCategory').value = ing.defaultMeal || ing.cat || 'Lunch';
-  syncCustomSelect(document.getElementById('inMealCategory'));
-  document.getElementById('inPortionGrams').value = ing.defaultGrams || 100;
-  document.getElementById('inFoodName').dataset.auto = '1';
+  ingredientPortionGrams = ing.defaultGrams || 100;
+  document.getElementById('inPortionGrams').value = String(ingredientPortionGrams);
   recalculateIngredientMacros();
 }
 
@@ -5427,7 +5538,7 @@ function beginMealEdit(mealId) {
   state.fuel.selectedManageMealId = meal.id;
   state.fuel.mealCreating = false;
   state.fuel.mealDraftName = meal.name;
-  $('#menuCustomManageSelect').hidden = true;
+  closeManageMenu();
   renderMealManagerDrawer();
 }
 
@@ -5435,9 +5546,7 @@ function beginNewMeal() {
   state.fuel.selectedManageMealId = null;
   state.fuel.mealCreating = true;
   state.fuel.mealDraftName = '';
-  $('#menuCustomManageSelect').hidden = true;
-  $('#editMealCat').value = 'Lunch';
-  syncCustomSelect($('#editMealCat'));
+  closeManageMenu();
   $('#editMealDefaultGrams').value = 100;
   $('#editMealP').value = 20;
   $('#editMealC').value = 10;
@@ -5451,7 +5560,7 @@ function cancelNewMeal() {
   state.fuel.selectedManageMealId = null;
   state.fuel.mealCreating = false;
   state.fuel.mealDraftName = '';
-  $('#menuCustomManageSelect').hidden = true;
+  closeManageMenu();
   renderMealManagerDrawer();
 }
 
@@ -5459,7 +5568,6 @@ function saveMealEditor() {
   const clean = String(state.fuel.mealDraftName || $('#manageMealEditName').value || '').trim().slice(0, LIMITS.routineName);
   if (!clean) return toast('Name your meal first');
 
-  const cat = $('#editMealCat').value;
   const defaultGrams = Math.max(1, parseFloat($('#editMealDefaultGrams').value) || 100);
   const p100 = parseFloat($('#editMealP').value) || 0;
   const c100 = parseFloat($('#editMealC').value) || 0;
@@ -5475,8 +5583,6 @@ function saveMealEditor() {
     const newMeal = {
       id: newId,
       name: clean,
-      cat,
-      defaultMeal: cat,
       p100,
       c100,
       f100,
@@ -5495,8 +5601,6 @@ function saveMealEditor() {
     const meal = state.fuel.foodDb.find(item => String(item.id) === String(state.fuel.selectedManageMealId));
     if (!meal) return;
     meal.name = clean;
-    meal.cat = cat;
-    meal.defaultMeal = cat;
     meal.defaultGrams = defaultGrams;
     meal.p100 = p100;
     meal.c100 = c100;
@@ -5511,6 +5615,18 @@ function saveMealEditor() {
   }
 }
 
+function renderManageMealMenu() {
+  const list = $('#manageMenuList');
+  if (!list) return;
+  const selectable = selectableMeals();
+  const query = ($('#manageSearchSwap')?.value || '').trim().toLowerCase();
+  const filtered = query ? selectable.filter(item => item.name.toLowerCase().includes(query)) : selectable;
+
+  list.innerHTML = filtered.length ? filtered.map(item => `
+    <button type="button" role="menuitem" data-manage-meal="${esc(item.id)}">${item.liked ? '♥ ' : ''}${esc(item.name)}</button>
+  `).join('') : `<span class="routine-menu-empty">${selectable.length ? 'No matches' : 'No meals yet'}</span>`;
+}
+
 function renderMealManagerDrawer() {
   const selectable = selectableMeals();
   const meal = state.fuel.foodDb.find(item => String(item.id) === String(state.fuel.selectedManageMealId));
@@ -5519,6 +5635,7 @@ function renderMealManagerDrawer() {
   const selector = $('#btnCustomManageSelect');
   const nameInput = $('#manageMealEditName');
   const menu = $('#menuCustomManageSelect');
+  const searchSwap = $('#manageSearchSwap');
   const modeButton = $('#fuelNewMealToggle');
   const modeText = modeButton.querySelector('span');
   const modeIcon = modeButton.querySelector('use');
@@ -5526,11 +5643,10 @@ function renderMealManagerDrawer() {
   const likeButton = $('#btnManageLike');
   const form = $('#mealEditorForm');
 
-  menu.innerHTML = selectable.length ? selectable.map(item => `
-    <button type="button" role="menuitem" data-manage-meal="${esc(item.id)}">${item.liked ? '♥ ' : ''}${esc(item.name)}</button>
-  `).join('') : '<span class="routine-menu-empty">No meals yet</span>';
+  renderManageMealMenu();
 
-  selector.hidden = editing;
+  selector.hidden = editing || !menu.hidden;
+  searchSwap.hidden = !(!editing && !menu.hidden);
   nameInput.hidden = !editing;
   form.hidden = !editing;
 
@@ -5557,8 +5673,6 @@ function renderMealManagerDrawer() {
     deleteButton.classList.remove('routine-done');
     deleteButton.disabled = false;
 
-    $('#editMealCat').value = meal.cat || 'Lunch';
-    syncCustomSelect($('#editMealCat'));
     $('#editMealDefaultGrams').value = meal.defaultGrams || 100;
     $('#editMealP').value = meal.p100;
     $('#editMealC').value = meal.c100;
@@ -5663,7 +5777,34 @@ $('#fuelNewMealToggle')?.addEventListener('click', () => {
 $('#btnCustomManageSelect')?.addEventListener('click', (event) => {
   toggleMenu($('#menuCustomManageSelect'), event.currentTarget, {
     except: () => $('#menuCustomManageSelect'),
-    open: () => positionMenuBetween($('#menuCustomManageSelect'), event.currentTarget)
+    open: () => {
+      positionMenuBetween($('#menuCustomManageSelect'), event.currentTarget);
+      setManageSearchMode(true);
+    },
+    close: () => setManageSearchMode(false)
+  });
+});
+
+$('#manageSearchSwap')?.addEventListener('input', renderManageMealMenu);
+$('#ingredientSearchSwap')?.addEventListener('input', renderIngredientMenuOptions);
+[
+  { input: 'manageSearchSwap', list: 'manageMenuList', button: 'btnCustomManageSelect', close: closeManageMenu },
+  { input: 'ingredientSearchSwap', list: 'ingredientMenuList', button: 'btnCustomIngredientSelect', close: closeIngredientMenu }
+].forEach(({ input, list, button, close }) => {
+  document.getElementById(input)?.addEventListener('keydown', (event) => {
+    const first = document.getElementById(list)?.querySelector('button:not([disabled])');
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      first?.click();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      first?.focus({ preventScroll: true });
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      document.getElementById(button)?.focus({ preventScroll: true });
+    }
   });
 });
 
@@ -5692,7 +5833,7 @@ $('#btnManageDelete')?.addEventListener('click', () => {
 
 function mealToText(meal) {
   if (!meal) return '';
-  return `${meal.name} - ${meal.cat || 'Other'} (${meal.defaultGrams || 100}g)\nPer100g ${meal.cals100}cal ${meal.p100}pro ${meal.c100}carb ${meal.f100}fat${meal.id ? `\nid: ${meal.id}` : ''}`;
+  return `${meal.name} (${meal.defaultGrams || 100}g)\nPer100g ${meal.cals100}cal ${meal.p100}pro ${meal.c100}carb ${meal.f100}fat${meal.id ? `\nid: ${meal.id}` : ''}`;
 }
 
 function mealsToText() {
@@ -5707,14 +5848,12 @@ function parseMealsText(text) {
   let currentMeal = null;
 
   for (const line of lines) {
-    const headerMatch = line.match(/^(.+)\s*-\s*([A-Za-z0-9\/\s-]+)\s*\(\s*(\d+(?:\.\d+)?)\s*g\s*\)$/i);
+    const headerMatch = line.match(/^(.+)\s*\(\s*(\d+(?:\.\d+)?)\s*g\s*\)$/i);
     if (headerMatch) {
       currentMeal = {
         id: `m-${stamp}-${meals.length}`,
         name: headerMatch[1].trim(),
-        cat: headerMatch[2].trim(),
-        defaultMeal: headerMatch[2].trim(),
-        defaultGrams: clamp(headerMatch[3], 1, 5000),
+        defaultGrams: clamp(headerMatch[2], 1, 5000),
         p100: 0,
         c100: 0,
         f100: 0,
@@ -5778,11 +5917,11 @@ async function importMealsFromText(mode = 'replace') {
 
 $('#copyManagedMeal').addEventListener('click', () => {
   const meal = state.fuel.foodDb.find(m => String(m.id) === String(state.fuel.selectedManageMealId));
-  meal ? copyMealValue(mealToText(meal), 'Meal copied') : toast('Nothing to export');
+  if (meal) copyMealValue(mealToText(meal), 'Meal copied');
 });
 $('#copyAllMeals').addEventListener('click', () => {
   const meals = selectableMeals();
-  meals.length ? copyMealValue(mealsToText(), 'All meals copied') : toast('Nothing to export');
+  if (meals.length) copyMealValue(mealsToText(), 'All meals copied');
 });
 $('#pasteMealToggle').addEventListener('click', () => $('#mealPastePanel').hidden ? showMealPastePanel() : closeMealPastePanel());
 $('#cancelMealPaste').addEventListener('click', closeMealPastePanel);
@@ -5824,42 +5963,85 @@ document.getElementById('presetFoodContainer').addEventListener('click', (e) => 
   applyPresetIngredient(chip.dataset.presetId, Number(chip.dataset.presetGrams) || 100);
 });
 
-function syncFoodLogSubmitState() {
-  const button = document.querySelector('#foodForm button[type="submit"]');
-  if (button) button.disabled = !document.getElementById('inFoodName').value.trim();
+let ingredientPortionGrams = 100;
+let customFoodName = '';
+
+function ingredientDisplayLabel() {
+  const selected = state.fuel.foodDb.find(i => String(i.id) === String(state.fuel.selectedIngredientId));
+  if (!selected || selected.id === 'custom') {
+    return customFoodName.trim() || DEFAULT_FOOD_DB[0].name;
+  }
+  return `${selected.liked ? '♥ ' : ''}${selected.name}`;
+}
+
+function isCustomIngredientSelected() {
+  const selected = state.fuel.foodDb.find(i => String(i.id) === String(state.fuel.selectedIngredientId));
+  return !selected || selected.id === 'custom';
 }
 
 function resetMealSelection() {
   state.fuel.selectedIngredientId = 'custom';
+  ingredientPortionGrams = 100;
+  customFoodName = '';
+  const nameInput = document.getElementById('inCustomName');
+  if (nameInput) nameInput.value = '';
+  setCustomNameEditing(false);
+  const portionInput = document.getElementById('inPortionGrams');
+  if (portionInput) portionInput.value = '100';
   renderNonNativeIngredientDropdown();
-  document.getElementById('inPortionGrams').value = 100;
-  document.getElementById('inFoodName').value = '';
-  delete document.getElementById('inFoodName').dataset.auto;
   document.getElementById('inFoodP').value = '0.0';
   document.getElementById('inFoodC').value = '0.0';
   document.getElementById('inFoodF').value = '0.0';
   document.getElementById('inFoodCals').value = '0';
-  syncFoodLogSubmitState();
 }
 
 function setPortion(grams) {
-  document.getElementById('inPortionGrams').value = grams;
+  ingredientPortionGrams = Math.max(1, Math.round(Number(grams)) || 1);
+  const portionInput = document.getElementById('inPortionGrams');
+  if (portionInput) portionInput.value = String(ingredientPortionGrams);
   recalculateIngredientMacros();
 }
 
-function autoFillFoodName(text) {
-  const input = document.getElementById('inFoodName');
-  if (!input.value.trim() || input.dataset.auto === '1') {
-    input.value = text;
-    input.dataset.auto = '1';
+function setCustomNameEditing(editing) {
+  const select = document.getElementById('btnCustomIngredientSelect');
+  const input = document.getElementById('inCustomName');
+  if (!select || !input) return;
+  select.hidden = editing;
+  input.hidden = !editing;
+  syncIngredientActionButton();
+  if (editing) input.focus();
+}
+
+function syncIngredientActionButton() {
+  const input = document.getElementById('inCustomName');
+  const btn = document.querySelector('.btn-custom-name');
+  if (!input || !btn) return;
+  const editing = !input.hidden;
+  const use = btn.querySelector('use');
+  if (editing) {
+    use?.setAttribute('href', '#icon-check');
+    btn.setAttribute('aria-label', 'Save custom name');
+  } else if (isCustomIngredientSelected() && !customFoodName.trim()) {
+    use?.setAttribute('href', '#icon-plus');
+    btn.setAttribute('aria-label', 'Enter custom name');
+  } else {
+    use?.setAttribute('href', '#icon-reset');
+    btn.setAttribute('aria-label', 'Reset selection');
   }
+}
+
+function commitCustomName() {
+  const input = document.getElementById('inCustomName');
+  if (input) customFoodName = input.value;
+  setCustomNameEditing(false);
+  renderNonNativeIngredientDropdown();
 }
 
 function recalculateIngredientMacros() {
   const ing = state.fuel.foodDb.find(i => String(i.id) === String(state.fuel.selectedIngredientId));
   if (!ing || ing.id === 'custom') return;
 
-  const grams = Math.max(0, parseFloat(document.getElementById('inPortionGrams').value) || 0);
+  const grams = Math.max(1, ingredientPortionGrams);
   const factor = grams / 100;
 
   const p = (ing.p100 * factor).toFixed(1);
@@ -5867,19 +6049,17 @@ function recalculateIngredientMacros() {
   const f = (ing.f100 * factor).toFixed(1);
   const cals = Math.round(ing.cals100 * factor);
 
-  autoFillFoodName(`${ing.name.split(',')[0]} (${grams}g)`);
   document.getElementById('inFoodP').value = p;
   document.getElementById('inFoodC').value = c;
   document.getElementById('inFoodF').value = f;
   document.getElementById('inFoodCals').value = cals;
-  syncFoodLogSubmitState();
 }
 
 function applyPresetIngredient(id, grams) {
   state.fuel.selectedIngredientId = id;
   renderNonNativeIngredientDropdown();
-  document.getElementById('inPortionGrams').value = grams;
-  document.getElementById('inFoodName').dataset.auto = '1';
+  ingredientPortionGrams = grams || 100;
+  document.getElementById('inPortionGrams').value = String(ingredientPortionGrams);
   recalculateIngredientMacros();
   openOverlay('logMeal');
 }
@@ -5889,6 +6069,11 @@ function syncFoodCalories() {
 }
 
 document.getElementById('foodForm').addEventListener('click', (e) => {
+  const portionBtn = e.target.closest('.routine-step[data-portion-delta]');
+  if (portionBtn) {
+    setPortion(ingredientPortionGrams + Number(portionBtn.dataset.portionDelta));
+    return;
+  }
   const btn = e.target.closest('.routine-step[data-food-field]');
   if (!btn) return;
   const field = btn.dataset.foodField;
@@ -5907,10 +6092,14 @@ document.getElementById('foodForm').addEventListener('click', (e) => {
   }
 });
 
-function handleFoodSubmit(e) {
-  e.preventDefault();
-  const name = document.getElementById('inFoodName').value.trim();
-  if (!name) return toast('Name your meal first');
+function saveMealEntry() {
+  const selected = state.fuel.foodDb.find(i => String(i.id) === String(state.fuel.selectedIngredientId));
+  const isCustom = !selected || selected.id === 'custom';
+  const name = isCustom ? customFoodName.trim() : `${selected.name.split(',')[0]} (${ingredientPortionGrams}g)`;
+  if (!name) {
+    toast('Select a meal first');
+    return false;
+  }
   const p = parseFloat(document.getElementById('inFoodP').value) || 0;
   const c = parseFloat(document.getElementById('inFoodC').value) || 0;
   const f = parseFloat(document.getElementById('inFoodF').value) || 0;
@@ -5919,7 +6108,7 @@ function handleFoodSubmit(e) {
   if (isNaN(cals) || cals <= 0) {
     cals = kcalFromMacros(p, c, f);
   }
-  const category = document.getElementById('inMealCategory').value;
+  const category = logMealSlot || nextLogSlot();
 
   ensureDateRecord(state.fuelSelectedDate);
   state.fuel.history[state.fuelSelectedDate].meals.push({
@@ -5937,6 +6126,7 @@ function handleFoodSubmit(e) {
   resetMealSelection();
   closeOverlay('logMeal');
   toast('Meal saved');
+  return true;
 }
 
 async function deleteMeal(id) {
@@ -6155,20 +6345,44 @@ document.getElementById('waterActions')?.addEventListener('click', (event) => {
   if (add) return addWater(Number(add.dataset.waterAdd));
   if (event.target.closest('[data-water-reset]')) resetWater();
 });
-document.getElementById('foodForm').addEventListener('submit', handleFoodSubmit);
-$('#foodCancel')?.addEventListener('click', () => closeOverlay('logMeal'));
-document.querySelector('.btn-reset-ingredient')?.addEventListener('click', resetMealSelection);
+$('#logMealSlotPills')?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-slot]');
+  if (!button) return;
+  const previous = logMealSlot;
+  logMealSlot = button.dataset.slot;
+  if (!saveMealEntry()) logMealSlot = previous;
+});
+document.querySelector('.btn-custom-name')?.addEventListener('click', () => {
+  const input = document.getElementById('inCustomName');
+  if (!input) return;
+  const swapActive = !document.getElementById('ingredientSearchSwap')?.hidden;
+  if (swapActive) {
+    closeIngredientMenu();
+    if (isCustomIngredientSelected() && !customFoodName.trim()) {
+      input.value = customFoodName;
+      setCustomNameEditing(true);
+    }
+    return;
+  }
+  if (!input.hidden) {
+    commitCustomName();
+  } else if (isCustomIngredientSelected() && !customFoodName.trim()) {
+    input.value = customFoodName;
+    setCustomNameEditing(true);
+  } else {
+    resetMealSelection();
+  }
+});
+document.getElementById('inCustomName')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    commitCustomName();
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    setCustomNameEditing(false);
+  }
+});
 document.getElementById('btnCustomIngredientSelect')?.addEventListener('click', toggleIngredientDropdown);
-document.querySelector('.portion-quick-buttons')?.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-set-portion]');
-  if (button) setPortion(Number(button.dataset.setPortion));
-});
-document.getElementById('inPortionGrams')?.addEventListener('input', recalculateIngredientMacros);
-document.getElementById('inFoodName')?.addEventListener('input', (event) => {
-  delete event.target.dataset.auto;
-  syncFoodLogSubmitState();
-});
-syncFoodLogSubmitState();
 ['editMealP', 'editMealC', 'editMealF'].forEach((id) => document.getElementById(id)?.addEventListener('input', syncManagedMealCals));
 document.getElementById('bodyMetricsForm').addEventListener('submit', handleProfileAndTargetSubmit);
 document.getElementById('clearDataForm').addEventListener('submit', handleClearDataSubmit);
@@ -6179,8 +6393,12 @@ document.getElementById('mealsContainer')?.addEventListener('click', (event) => 
 });
 
 initMenuKeyboard('routineMenu', 'routineSelectorButton');
-initMenuKeyboard('menuCustomManageSelect', 'btnCustomManageSelect');
-initMenuKeyboard('menuCustomIngredient', 'btnCustomIngredientSelect');
+initMenuKeyboard('menuCustomManageSelect', 'btnCustomManageSelect', () => {
+  setManageSearchMode(true);
+});
+initMenuKeyboard('menuCustomIngredient', 'btnCustomIngredientSelect', () => {
+  setIngredientSearchMode(true);
+});
 
 /* =========================================================
    CARD DETAIL MOBILE SWIPE-DOWN GESTURE HANDLER

@@ -6,22 +6,25 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Browse 1,300+ exercises, build routines, track training progress, and manage nutrition, macros, and hydration.">
   <title>Form — Training & Nutrition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <script>
     (function () {
       try {
         var name = JSON.parse(localStorage.getItem('form-accent') || 'null');
         var p = {
-          red:    ['#ff453a', '255, 69, 58'],
-          blue:   ['#0a84ff', '10, 132, 255'],
-          green:  ['#30d158', '48, 209, 88'],
-          orange: ['#ff9f0a', '255, 159, 10'],
-          purple: ['#bf5af2', '191, 90, 242'],
-          pink:   ['#ff64d9', '255, 100, 217']
+          red:    ['#ff453a', '255, 69, 58', '#ffffff'],
+          blue:   ['#0a84ff', '10, 132, 255', '#ffffff'],
+          green:  ['#30d158', '48, 209, 88', '#131314'],
+          orange: ['#ff9f0a', '255, 159, 10', '#131314'],
+          purple: ['#bf5af2', '191, 90, 242', '#ffffff'],
+          pink:   ['#ff375f', '255, 55, 95', '#ffffff']
         }[name];
         if (p) {
           var s = document.documentElement.style;
           s.setProperty('--accent', p[0]);
-          s.setProperty('--accent-ink', '#ffffff');
+          s.setProperty('--accent-ink', p[2]);
           s.setProperty('--accent-rgb', p[1]);
         }
       } catch (e) {}
@@ -49,7 +52,7 @@
   <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
   <symbol id="icon-copy-all" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3M4 9h2M5 8v2"/></symbol>
   <symbol id="icon-clipboard" viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M8 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-2"/></symbol>
-  <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M8 11v7M12 11v7M16 11v7M6 7l1 14h10l1-14"/></symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
   <symbol id="icon-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
   <symbol id="icon-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M4 4v6h6"/><path d="M5.5 15a7 7 0 1 0 .7-7.8L4 10"/></symbol>
@@ -205,8 +208,8 @@
       <section class="progress-date-picker-card" role="dialog" aria-modal="true" aria-labelledby="progressDatePickerTitle">
         <div class="progress-date-picker-head">
           <button class="progress-date-nav progress-date-prev" id="progressDatePrev" type="button" aria-label="Previous month"><svg class="icon"><use href="#icon-chevron"/></svg></button>
-          <strong id="progressDatePickerTitle">August 2026</strong>
-          <button class="progress-date-nav" id="progressDateNext" type="button" aria-label="Next month"><svg class="icon"><use href="#icon-chevron"/></svg></button>
+          <button type="button" id="progressDatePickerTitle" disabled>August 2026</button>
+          <button class="progress-date-nav progress-date-next" id="progressDateNext" type="button" aria-label="Next month"><svg class="icon"><use href="#icon-chevron"/></svg></button>
         </div>
         <div class="progress-date-weekdays" id="progressDateWeekdays" aria-hidden="true"></div>
         <div class="progress-date-grid" id="progressDateGrid" role="grid" aria-label="Choose a date"></div>
@@ -342,41 +345,22 @@
     </div>
     <div class="feature-scroll">
       <form class="progress-form" id="foodForm">
-        <div class="feature-field feature-field-wide">
-          <div class="ingredient-select-wrap">
-            <button class="btn-reset-ingredient" type="button" aria-label="Reset selection">
-              <svg class="icon"><use href="#icon-close"/></svg>
-            </button>
-            <div class="routine-editor-control">
-              <button class="custom-select-button" id="btnCustomIngredientSelect" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="lblCustomIngredient">-- Custom Entry / Other --</span></button>
-              <div class="routine-menu" id="menuCustomIngredient" role="listbox" hidden></div>
-            </div>
+        <div class="feature-field feature-field-wide ingredient-select-field">
+          <div class="routine-editor-control">
+            <button class="custom-select-button" id="btnCustomIngredientSelect" type="button" aria-haspopup="listbox" aria-expanded="false"><span id="lblCustomIngredient">Select a meal or add one</span></button>
+            <input type="text" id="inCustomName" class="custom-name-input" maxlength="80" placeholder="Custom name" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-label="Custom food name" hidden>
+            <button class="btn-custom-name" type="button" aria-label="Enter custom name"><svg class="icon"><use href="#icon-plus"/></svg></button>
+            <div class="routine-menu" id="menuCustomIngredient" role="listbox" hidden><div class="menu-search-list" id="ingredientMenuList"></div></div>
+            <input type="text" class="menu-search-input" id="ingredientSearchSwap" placeholder="Search meals" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-label="Search meals" hidden>
           </div>
         </div>
         <div class="feature-field feature-field-wide">
           <span>Portion weight (grams)</span>
-          <div class="portion-inline-row">
-            <input type="number" id="inPortionGrams" value="100" min="0" step="1">
-            <div class="portion-quick-buttons">
-              <button type="button" data-set-portion="100">100g</button>
-              <button type="button" data-set-portion="150">150g</button>
-              <button type="button" data-set-portion="200">200g</button>
-              <button type="button" data-set-portion="300">300g</button>
-            </div>
+          <div class="routine-stepper">
+            <button class="routine-step" type="button" data-portion-delta="-50" aria-label="Decrease portion by 50 grams"><svg class="icon"><use href="#icon-minus"/></svg></button>
+            <input id="inPortionGrams" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" enterkeyhint="done" value="100" aria-label="Portion weight in grams">
+            <button class="routine-step" type="button" data-portion-delta="50" aria-label="Increase portion by 50 grams"><svg class="icon"><use href="#icon-plus"/></svg></button>
           </div>
-        </div>
-        <div class="feature-field">
-          <span>Food / recipe name</span>
-          <input type="text" id="inFoodName" placeholder="e.g. Chicken Breast (150g)">
-        </div>
-        <div class="feature-field">
-          <label for="inMealCategory">Category</label>
-          <select id="inMealCategory" aria-label="Meal Category">
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-            <option value="Snacks">Snacks</option>
-          </select>
         </div>
         <div class="feature-field">
           <span>Calories (kcal)</span>
@@ -411,8 +395,12 @@
           </div>
         </div>
         <div class="progress-actions feature-field-wide">
-          <button type="button" class="progress-cancel" id="foodCancel">Cancel</button>
-          <button class="feature-primary" id="foodSave" type="submit">Save</button>
+          <div class="pill-row" id="logMealSlotPills" role="group" aria-label="Meal">
+            <button type="button" class="pill" data-slot="Breakfast" aria-pressed="false">Breakfast</button>
+            <button type="button" class="pill" data-slot="Lunch" aria-pressed="false">Lunch</button>
+            <button type="button" class="pill" data-slot="Dinner" aria-pressed="false">Dinner</button>
+            <button type="button" class="pill" data-slot="Snacks" aria-pressed="false">Snack</button>
+          </div>
         </div>
       </form>
     </div>
@@ -560,7 +548,8 @@
         <div class="routine-editor-control">
           <button class="custom-select-button" id="btnCustomManageSelect" type="button" aria-haspopup="menu" aria-expanded="false">Select a meal to edit</button>
           <input class="routine-name-editor" id="manageMealEditName" maxlength="40" placeholder="Meal name" aria-label="Meal name" hidden>
-          <div class="routine-menu" id="menuCustomManageSelect" role="menu" hidden></div>
+          <div class="routine-menu" id="menuCustomManageSelect" role="menu" hidden><div class="menu-search-list" id="manageMenuList"></div></div>
+          <input type="text" class="menu-search-input" id="manageSearchSwap" placeholder="Search meals" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-label="Search meals" hidden>
         </div>
         <button class="routine-like" id="btnManageLike" type="button" aria-label="Like meal" aria-pressed="false" disabled><svg class="icon"><use href="#icon-heart"/></svg></button>
         <button id="btnManageDelete" type="button" aria-label="Delete meal" disabled>Delete</button>
@@ -628,34 +617,12 @@
       </div>
     </section>
     <form class="fuel-meal-editor" id="mealEditorForm" hidden>
-      <div class="grid-2">
-        <div class="feature-field">
-          <label for="editMealCat">Category</label>
-          <select id="editMealCat" aria-label="Meal Category">
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-            <option value="Snacks">Snacks</option>
-            <option value="Poultry">Poultry</option>
-            <option value="Meat">Meat</option>
-            <option value="Seafood">Seafood</option>
-            <option value="Dairy/Eggs">Dairy/Eggs</option>
-            <option value="Grains">Grains</option>
-            <option value="Legumes">Legumes</option>
-            <option value="Vegetables">Vegetables</option>
-            <option value="Fruits">Fruits</option>
-            <option value="Nuts/Fats">Nuts/Fats</option>
-            <option value="Supplements">Supplements</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="feature-field">
-          <label for="editMealDefaultGrams">Standard Grams</label>
-          <div class="routine-stepper">
-            <button class="routine-step" type="button" data-meal-step="editMealDefaultGrams" data-meal-delta="-5" aria-label="Decrease standard grams"><svg class="icon"><use href="#icon-minus"/></svg></button>
-            <input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" enterkeyhint="done" id="editMealDefaultGrams" value="100" aria-label="Standard grams">
-            <button class="routine-step" type="button" data-meal-step="editMealDefaultGrams" data-meal-delta="5" aria-label="Increase standard grams"><svg class="icon"><use href="#icon-plus"/></svg></button>
-          </div>
+      <div class="feature-field">
+        <label for="editMealDefaultGrams">Standard Grams</label>
+        <div class="routine-stepper">
+          <button class="routine-step" type="button" data-meal-step="editMealDefaultGrams" data-meal-delta="-5" aria-label="Decrease standard grams"><svg class="icon"><use href="#icon-minus"/></svg></button>
+          <input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" enterkeyhint="done" id="editMealDefaultGrams" value="100" aria-label="Standard grams">
+          <button class="routine-step" type="button" data-meal-step="editMealDefaultGrams" data-meal-delta="5" aria-label="Increase standard grams"><svg class="icon"><use href="#icon-plus"/></svg></button>
         </div>
       </div>
       <div class="grid-2">
@@ -817,7 +784,7 @@
               <button type="button" class="accent-swatch" role="radio" data-accent="green" aria-checked="false" aria-label="Green" style="--swatch:#30d158"></button>
               <button type="button" class="accent-swatch" role="radio" data-accent="orange" aria-checked="false" aria-label="Orange" style="--swatch:#ff9f0a"></button>
               <button type="button" class="accent-swatch" role="radio" data-accent="purple" aria-checked="false" aria-label="Purple" style="--swatch:#bf5af2"></button>
-              <button type="button" class="accent-swatch" role="radio" data-accent="pink" aria-checked="false" aria-label="Pink" style="--swatch:#ff64d9"></button>
+              <button type="button" class="accent-swatch" role="radio" data-accent="pink" aria-checked="false" aria-label="Pink" style="--swatch:#ff375f"></button>
             </div>
           </div>
         </section>
